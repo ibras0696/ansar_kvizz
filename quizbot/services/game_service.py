@@ -59,7 +59,7 @@ async def press_buzzer(
 
     team = await ensure_team_for_user(session, chat_id, user_id)
     if not team:
-        return ("Вы не в команде. Используйте /register_team <название>", None)
+        return ("Вы не в команде. Используйте /register_team &lt;название&gt;", None)
 
     state = get_state(chat_id)
     async with state.lock:

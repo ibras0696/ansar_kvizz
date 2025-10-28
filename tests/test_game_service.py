@@ -14,6 +14,12 @@ from quizbot.services.game_state import get_state
 
 @pytest.mark.asyncio
 async def test_press_buzzer_requires_running_game(session):
+    """
+    Убеждается, что нажатие «БАЗЗЕР» до старта игры не принимает очередь.
+
+    :param session: Асинхронная сессия БД из фикстуры.
+    :return: None
+    """
     message, position = await press_buzzer(session, chat_id=1, user_id=10)
     assert position is None
     assert message.startswith("Раунд ещё не начат")
@@ -21,6 +27,12 @@ async def test_press_buzzer_requires_running_game(session):
 
 @pytest.mark.asyncio
 async def test_press_buzzer_queue_management(session):
+    """
+    Проверяет, что очередь формируется корректно и сохраняет порядок команд.
+
+    :param session: Асинхронная сессия БД из фикстуры.
+    :return: None
+    """
     chat_id = 777
     # create running game and two teams
     alpha = Team(chat_id=chat_id, name="Alpha")
@@ -75,6 +87,12 @@ async def test_press_buzzer_queue_management(session):
 
 @pytest.mark.asyncio
 async def test_ensure_team_for_user_missing_and_found(session):
+    """
+    Удостоверяется, что поиск команды пользователя работает до и после регистрации.
+
+    :param session: Асинхронная сессия БД из фикстуры.
+    :return: None
+    """
     chat_id = 555
     user_id = 42
     team = Team(chat_id=chat_id, name="Seekers")

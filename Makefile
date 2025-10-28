@@ -1,10 +1,14 @@
-.PHONY: up down logs run db-init lint fmt
+.PHONY: up down restart logs run db-init lint fmt clean
 
 up:
 	docker compose up -d --build && docker compose logs -f bot
 
 down:
 	docker compose down
+
+restart:
+	docker compose down
+	docker compose up -d --build
 
 logs:
 	docker compose logs -f bot

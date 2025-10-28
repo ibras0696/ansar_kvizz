@@ -13,6 +13,13 @@ class FakeChat:
     """Простая модель чата для имитации aiogram объекта."""
 
     def __init__(self, chat_id: int, chat_type: str = "group") -> None:
+        """
+        Инициализирует поддельный чат с нужным типом.
+
+        :param chat_id: Идентификатор чата.
+        :param chat_type: Тип чата (group/supergroup/private).
+        :return: None
+        """
         self.id = chat_id
         self.type = chat_type
 
@@ -21,6 +28,12 @@ class FakeUser:
     """Минимальная модель пользователя."""
 
     def __init__(self, user_id: int) -> None:
+        """
+        Запоминает идентификатор пользователя.
+
+        :param user_id: Telegram ID пользователя.
+        :return: None
+        """
         self.id = user_id
 
 
@@ -28,21 +41,48 @@ class FakeMessage:
     """Сообщение, перехватывающее вызовы answer()."""
 
     def __init__(self, chat_id: int, user_id: int, text: str, chat_type: str = "group") -> None:
+        """
+        Создаёт сообщение с контекстом чата и пользователя.
+
+        :param chat_id: Идентификатор чата.
+        :param user_id: Telegram ID отправителя.
+        :param text: Текст команды/сообщения.
+        :param chat_type: Тип чата (по умолчанию group).
+        :return: None
+        """
         self.chat = FakeChat(chat_id, chat_type)
         self.from_user = FakeUser(user_id)
         self.text = text
         self._answers: List[dict[str, Any]] = []
 
     async def answer(self, text: str, reply_markup: Any | None = None) -> None:
+        """
+        Имитирует ответ бота и сохраняет его в историю.
+
+        :param text: Текст ответа.
+        :param reply_markup: Переданная клавиатура (если есть).
+        :return: None
+        """
         self._answers.append({"text": text, "reply_markup": reply_markup})
 
     @property
     def answers(self) -> List[dict[str, Any]]:
+        """
+        Возвращает накопленные ответы сообщения.
+
+        :return: Список словарей с текстами и клавиатурами.
+        """
         return self._answers
 
 
 @pytest.mark.asyncio
 async def test_cmd_start_shows_keyboard(monkeypatch):
+    """
+    Проверяет, что команда /start возвращает клавиатуру с «БАЗЗЕРом».
+
+    :param monkeypatch: Фикстура monkeypatch (не используется напрямую).
+    :return: None
+    """
     from quizbot.handlers import commands
 
     msg = FakeMessage(chat_id=1, user_id=1, text="/start")
@@ -56,6 +96,13 @@ async def test_cmd_start_shows_keyboard(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_register_creates_team(session_factory, monkeypatch):
+    """
+    Удостоверяется, что регистрация команды создаёт Team и TeamMember.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -76,6 +123,13 @@ async def test_cmd_register_creates_team(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_new_game_creates_owner(session_factory, monkeypatch):
+    """
+    Проверяет, что /new_game назначает ведущего и очищает очередь.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -103,6 +157,13 @@ async def test_cmd_new_game_creates_owner(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_start_denies_non_admin(session_factory, monkeypatch):
+    """
+    Убеждается, что неведущий получает отказ при запуске игры.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -120,6 +181,13 @@ async def test_cmd_start_denies_non_admin(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_start_game_allows_admin(session_factory, monkeypatch):
+    """
+    Проверяет, что ведущий может перевести игру в статус running.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -142,6 +210,13 @@ async def test_cmd_start_game_allows_admin(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_order_displays_queue(session_factory, monkeypatch):
+    """
+    Удостоверяется, что /order показывает текущую очередь команд.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -163,6 +238,13 @@ async def test_cmd_order_displays_queue(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_order_when_empty(session_factory, monkeypatch):
+    """
+    Проверяет, что /order сообщает об отсутствии очереди.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -181,6 +263,13 @@ async def test_cmd_order_when_empty(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_wrong_advances_queue(session_factory, monkeypatch):
+    """
+    Проверяет, что /wrong сдвигает очередь и объявляет следующего.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -204,6 +293,13 @@ async def test_cmd_wrong_advances_queue(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_finish_clears_state(session_factory, monkeypatch):
+    """
+    Проверяет, что /finish_game завершает игру и очищает STATE.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -228,6 +324,13 @@ async def test_cmd_finish_clears_state(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_correct_resets_queue(session_factory, monkeypatch):
+    """
+    Убеждается, что /correct очищает очередь текущего чата.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -248,6 +351,13 @@ async def test_cmd_correct_resets_queue(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cmd_next_round_resets_queue(session_factory, monkeypatch):
+    """
+    Проверяет, что /next_round обнуляет очередь перед новым вопросом.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import commands
 
     monkeypatch.setattr(commands, "SessionLocal", session_factory)
@@ -268,6 +378,12 @@ async def test_cmd_next_round_resets_queue(session_factory, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_is_admin_accepts_default_admin(monkeypatch):
+    """
+    Удостоверяется, что ID из DEFAULT_ADMIN_IDS распознаётся как ведущий.
+
+    :param monkeypatch: Фикстура monkeypatch для замены списка админов.
+    :return: None
+    """
     from quizbot.handlers import commands
     from quizbot.config import settings
 

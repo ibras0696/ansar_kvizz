@@ -12,10 +12,22 @@ class FakeMessage:
     """Имитация сообщения для проверки ответов callback-хэндлера."""
 
     def __init__(self, chat_id: int) -> None:
+        """
+        Создаёт объект сообщения с указанным чат ID.
+
+        :param chat_id: Идентификатор тестового чата.
+        :return: None
+        """
         self.chat = type("Chat", (), {"id": chat_id})()
         self.sent = []
 
     async def answer(self, text: str) -> None:
+        """
+        Эмулирует отправку сообщения ботом.
+
+        :param text: Текст сообщения.
+        :return: None
+        """
         self.sent.append(text)
 
 
@@ -23,17 +35,38 @@ class FakeCallback:
     """Имитация CallbackQuery."""
 
     def __init__(self, chat_id: int, user_id: int) -> None:
+        """
+        Формирует поддельный callback с заданными ID.
+
+        :param chat_id: Идентификатор чата.
+        :param user_id: Идентификатор пользователя.
+        :return: None
+        """
         self.from_user = type("User", (), {"id": user_id})()
         self.message = FakeMessage(chat_id)
         self.data = BUZZER_CB
         self.responses = []
 
     async def answer(self, text: str, show_alert: bool = False) -> None:
+        """
+        Сохраняет ответ callback-хэндлера.
+
+        :param text: Возвращаемый текст.
+        :param show_alert: Флаг необходимости алерта.
+        :return: None
+        """
         self.responses.append((text, show_alert))
 
 
 @pytest.mark.asyncio
 async def test_on_buzzer_announces_first(session_factory, monkeypatch):
+    """
+    Проверяет, что первый нажимающий объявляется и очередь дополняется корректно.
+
+    :param session_factory: Фабрика асинхронных сессий.
+    :param monkeypatch: Фикстура для подмены SessionLocal.
+    :return: None
+    """
     from quizbot.handlers import callbacks
 
     monkeypatch.setattr(callbacks, "SessionLocal", session_factory)

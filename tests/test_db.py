@@ -6,6 +6,11 @@ from quizbot.db import engine, init_db, _set_sqlite_pragma
 
 @pytest.mark.asyncio
 async def test_init_db_creates_schema_and_enables_fk():
+    """
+    Проверяет создание схемы и включение foreign_keys pragma.
+
+    :return: None
+    """
     await init_db()
     async with engine.connect() as conn:
         # foreign keys pragma should be enabled via connect listener
@@ -18,6 +23,11 @@ async def test_init_db_creates_schema_and_enables_fk():
 
 
 def test_sqlite_pragma_handles_errors():
+    """
+    Убеждается, что обработчик PRAGMA не падает при ошибках подключения.
+
+    :return: None
+    """
     class DummyConn:
         def cursor(self):
             raise RuntimeError("boom")

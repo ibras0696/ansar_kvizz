@@ -65,7 +65,7 @@ async def cmd_register(message: Message) -> None:
     """
     parts = message.text.split(maxsplit=1) if message.text else []
     if len(parts) < 2:
-        await message.answer("Укажи название: /register_team <название>")
+        await message.answer("Укажи название: /register_team &lt;название&gt;")
         return
 
     name = parts[1].strip()

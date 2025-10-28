@@ -8,13 +8,30 @@ class DummyDispatcher:
     """Заглушка Dispatcher, фиксирующая вызовы."""
 
     def __init__(self) -> None:
+        """
+        Инициализирует хранилища зарегистрированных роутеров.
+
+        :return: None
+        """
         self.routers = []
         self.started = False
 
     def include_router(self, router) -> None:
+        """
+        Сохраняет добавленный роутер в списке.
+
+        :param router: Aiogram Router или его заглушка.
+        :return: None
+        """
         self.routers.append(router)
 
     async def start_polling(self, _bot) -> None:
+        """
+        Помечает начало polling без запуска реального цикла.
+
+        :param _bot: Экземпляр бота (не используется).
+        :return: None
+        """
         self.started = True
 
 
@@ -29,6 +46,12 @@ class DummyBot:
 
 @pytest.mark.asyncio
 async def test_main_async(monkeypatch):
+    """
+    Проверяет, что main_async инициализирует БД и стартует polling.
+
+    :param monkeypatch: Фикстура для подмены зависимостей.
+    :return: None
+    """
     from quizbot import __main__
 
     dummy_dispatcher = DummyDispatcher()
@@ -47,6 +70,12 @@ async def test_main_async(monkeypatch):
 
 
 def test_main_wrapper(monkeypatch):
+    """
+    Убеждается, что main() оборачивает main_async через asyncio.run.
+
+    :param monkeypatch: Фикстура для подмены asyncio.run.
+    :return: None
+    """
     from quizbot import __main__
 
     called = {}

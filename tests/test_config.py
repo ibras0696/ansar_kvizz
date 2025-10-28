@@ -2,6 +2,11 @@ from quizbot.config import Settings
 
 
 def test_settings_parse_admin_ids():
+    """
+    Проверяет разбор CSV-списка идентификаторов админов.
+
+    :return: None
+    """
     settings = Settings(
         BOT_TOKEN="token",
         DATABASE_URL="sqlite+aiosqlite:///:memory:",
@@ -12,6 +17,11 @@ def test_settings_parse_admin_ids():
 
 
 def test_settings_accepts_list():
+    """
+    Убеждается, что список идентификаторов используется как есть.
+
+    :return: None
+    """
     settings = Settings(
         BOT_TOKEN="token",
         DATABASE_URL="sqlite+aiosqlite:///:memory:",
