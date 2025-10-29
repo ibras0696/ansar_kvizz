@@ -1,4 +1,4 @@
-.PHONY: up down restart logs run db-init lint fmt clean
+.PHONY: up down restart logs run db-init lint fmt clean git
 
 up:
 	docker compose up -d --build && docker compose logs -f bot
@@ -31,3 +31,9 @@ clean: ## Очистить кэши, coverage и сборочные артефа
 	echo "🧺 Cleaning caches..."
 	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
 	rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage coverage.xml htmlcov build dist *.egg-info
+
+git:
+	@if [ -z "$(MSG)" ]; then echo "Usage: make git MSG=\"commit message\""; exit 1; fi
+	git add .
+	git commit -m "$(MSG)"
+	git push

@@ -11,79 +11,114 @@ from quizbot.db import Base
 
 class Team(Base):
     """
-    Представляет команду в рамках чата.
+    Представляет команду участника.
 
     :ivar id: Идентификатор команды.
-    :ivar chat_id: Идентификатор чата Telegram.
-    :ivar name: Название команды.
-    :ivar members: Участники команды.
+    :ivar name: Уникальное название команды.
+    :ivar members: Список участников.
     """
+
     __tablename__ = "teams"
-    __table_args__ = (UniqueConstraint("chat_id", "name", name="uq_team_chat_name"),)
+    __table_args__ = (UniqueConstraint("name", name="uq_team_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
-    name: Mapped[str] = mapped_column(String(120))
+    name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
 
     members: Mapped[list["TeamMember"]] = relationship(
         back_populates="team", cascade="all, delete-orphan"
+    )
+    game_participants: Mapped[list["GameParticipant"]] = relationship(
+        back_populates="team", cascade="all, delete-orphan"
+    )
+
+
+class Player(Base):
+    """
+    Описывает пользователя, общающегося с ботом.
+
+    :ivar id: Первичный ключ.
+    :ivar tg_user_id: Уникальный Telegram ID.
+    :ivar username: Telegram username (если есть).
+    :ivar full_name: Отображаемое имя пользователя.
+    """
+
+    __tablename__ = "players"
+    __table_args__ = (UniqueConstraint("tg_user_id", name="uq_player_tg_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tg_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    username: Mapped[Optional[str]] = mapped_column(String(64), default=None)
+    full_name: Mapped[Optional[str]] = mapped_column(String(128), default=None)
+
+    memberships: Mapped[list["TeamMember"]] = relationship(
+        back_populates="player", cascade="all, delete-orphan"
     )
 
 
 class TeamMember(Base):
     """
-    Отражает участие пользователя в конкретной команде.
+    Отражает участие игрока в конкретной команде.
 
     :ivar id: Первичный ключ.
-    :ivar chat_id: Идентификатор чата.
     :ivar team_id: Ссылка на команду.
-    :ivar tg_user_id: Telegram ID участника.
+    :ivar player_id: Ссылка на игрока.
     """
+
     __tablename__ = "team_members"
-    __table_args__ = (UniqueConstraint("chat_id", "tg_user_id", name="uq_member_chat_user"),)
+    __table_args__ = (
+        UniqueConstraint("player_id", name="uq_member_player"),
+        UniqueConstraint("team_id", "player_id", name="uq_team_player"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
-    tg_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"))
 
     team: Mapped[Team] = relationship(back_populates="members")
+    player: Mapped[Player] = relationship(back_populates="memberships")
 
 
 class Game(Base):
     """
-    Модель игры, связывает чат и ведущего.
+    Модель игры, которую ведёт администратор.
 
     :ivar id: Первичный ключ.
-    :ivar chat_id: Идентификатор чата.
-    :ivar owner_user_id: Telegram ID ведущего.
-    :ivar status: Текущий статус игры.
-    :ivar created_at: Дата создания.
-    :ivar finished_at: Дата завершения.
+    :ivar owner_user_id: Telegram ID ведущего (админа).
+    :ivar status: Состояние игры.
+    :ivar created_at: Время создания.
+    :ivar finished_at: Время завершения.
     """
+
     __tablename__ = "games"
-    __table_args__ = (UniqueConstraint("chat_id", name="uq_game_chat"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
     owner_user_id: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(16), default="idle")
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     finished_at: Mapped[Optional[datetime]] = mapped_column(default=None)
 
+    participants: Mapped[list["GameParticipant"]] = relationship(
+        back_populates="game", cascade="all, delete-orphan"
+    )
 
-class Round(Base):
+
+class GameParticipant(Base):
     """
-    Описывает раунд внутри игры.
+    Связка игра-команда с текущим счётом.
 
     :ivar id: Первичный ключ.
-    :ivar game_id: Ссылка на игру.
-    :ivar question: Текст вопроса.
-    :ivar created_at: Время создания.
+    :ivar game_id: Идентификатор игры.
+    :ivar team_id: Идентификатор команды.
+    :ivar score: Накопленный счёт.
     """
-    __tablename__ = "rounds"
+
+    __tablename__ = "game_participants"
+    __table_args__ = (UniqueConstraint("game_id", "team_id", name="uq_game_team"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
-    question: Mapped[Optional[str]] = mapped_column(String(255), default=None)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
+    score: Mapped[int] = mapped_column(default=0)
+
+    game: Mapped[Game] = relationship(back_populates="participants")
+    team: Mapped[Team] = relationship(back_populates="game_participants")

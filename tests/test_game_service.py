@@ -1,113 +1,151 @@
+from __future__ import annotations
+
 import pytest
-from sqlalchemy import select
 
-from quizbot.models import Game, Team, TeamMember
 from quizbot.services.game_service import (
-    ensure_team_for_user,
-    get_order,
-    pop_next,
+    award_score,
+    create_game,
+    finish_question,
+    get_active_game,
+    get_or_create_player,
+    get_player_team,
+    get_scores,
+    pop_queue,
     press_buzzer,
-    reset_round,
+    register_team,
+    start_game,
+    start_question,
+    finish_game,
+    pop_queue,
 )
-from quizbot.services.game_state import get_state
 
 
 @pytest.mark.asyncio
-async def test_press_buzzer_requires_running_game(session):
+async def test_register_team_unique(session):
     """
-    Убеждается, что нажатие «БАЗЗЕР» до старта игры не принимает очередь.
+    Убеждается, что игроку нельзя иметь две команды и имена уникальны.
 
-    :param session: Асинхронная сессия БД из фикстуры.
+    :param session: Асинхронная тестовая сессия.
     :return: None
     """
-    message, position = await press_buzzer(session, chat_id=1, user_id=10)
-    assert position is None
-    assert message.startswith("Раунд ещё не начат")
+
+    player = await get_or_create_player(session, 100, "user", "Test User")
+    team = await register_team(session, player, "Rockets")
+    assert await get_player_team(session, player) == team
+
+    with pytest.raises(ValueError):
+        await register_team(session, player, "Another")
+
+    other = await get_or_create_player(session, 101, "other", "Other User")
+    with pytest.raises(ValueError):
+        await register_team(session, other, "ROCKETS")
 
 
 @pytest.mark.asyncio
-async def test_press_buzzer_queue_management(session):
+async def test_press_buzzer_queue(session):
     """
-    Проверяет, что очередь формируется корректно и сохраняет порядок команд.
+    Проверяет, что «БАЗЗЕР» работает только во время вопроса и сохраняет очередь.
 
-    :param session: Асинхронная сессия БД из фикстуры.
+    :param session: Асинхронная тестовая сессия.
     :return: None
     """
-    chat_id = 777
-    # create running game and two teams
-    alpha = Team(chat_id=chat_id, name="Alpha")
-    beta = Team(chat_id=chat_id, name="Beta")
-    game = Game(chat_id=chat_id, owner_user_id=1, status="running")
-    session.add_all([alpha, beta, game])
-    await session.flush()
-    session.add_all(
-        [
-            TeamMember(chat_id=chat_id, team_id=alpha.id, tg_user_id=11),
-            TeamMember(chat_id=chat_id, team_id=beta.id, tg_user_id=22),
-        ]
-    )
-    await session.commit()
 
-    # First press puts Alpha to head of queue
-    msg1, pos1 = await press_buzzer(session, chat_id=chat_id, user_id=11)
-    assert pos1 == 1
-    assert msg1 == "Вы первые!"
-    state = get_state(chat_id)
-    assert state.queue == [alpha.id]
+    admin_id = 1
+    player1 = await get_or_create_player(session, 201, "alpha", "Alpha Player")
+    player2 = await get_or_create_player(session, 202, "beta", "Beta Player")
+    team1 = await register_team(session, player1, "Alpha")
+    team2 = await register_team(session, player2, "Beta")
 
-    # Duplicate press keeps position
-    msg_dup, pos_dup = await press_buzzer(session, chat_id=chat_id, user_id=11)
-    assert pos_dup == 1
-    assert msg_dup == "Вы уже в очереди, ваша позиция: №1"
-    assert state.queue == [alpha.id]
+    game = await create_game(session, owner_user_id=admin_id)
+    await start_game(session, game)
 
-    # Second team joins queue
-    msg2, pos2 = await press_buzzer(session, chat_id=chat_id, user_id=22)
-    assert pos2 == 2
-    assert msg2 == "Принято! Ваша позиция: №2"
-    assert state.queue == [alpha.id, beta.id]
+    result_idle = await press_buzzer(session, game, player1)
+    assert "нет активного вопроса" in result_idle.message
 
-    # Order reflects queue
-    names = await get_order(session, chat_id)
-    assert names == ["Alpha", "Beta"]
+    await start_question(session, game)
+    result_first = await press_buzzer(session, game, player1)
+    assert result_first.position == 1
+    assert result_first.team.id == team1.id
 
-    # pop_next removes head and returns remaining queue names
-    remaining = await pop_next(session, chat_id)
-    assert remaining == ["Beta"]
-
-    # Next call clears queue completely
-    remaining2 = await pop_next(session, chat_id)
-    assert remaining2 == []
-
-    # reset_round wipes queue
-    state.queue = [alpha.id]
-    await reset_round(chat_id)
-    assert state.queue == []
+    result_second = await press_buzzer(session, game, player2)
+    assert result_second.position == 2
+    assert result_second.team.id == team2.id
 
 
 @pytest.mark.asyncio
-async def test_ensure_team_for_user_missing_and_found(session):
+async def test_award_score_updates_table(session):
     """
-    Удостоверяется, что поиск команды пользователя работает до и после регистрации.
+    Проверяет начисление очков и закрытие вопроса.
 
-    :param session: Асинхронная сессия БД из фикстуры.
+    :param session: Асинхронная тестовая сессия.
     :return: None
     """
-    chat_id = 555
-    user_id = 42
-    team = Team(chat_id=chat_id, name="Seekers")
-    game = Game(chat_id=chat_id, owner_user_id=999, status="running")
-    session.add_all([team, game])
-    await session.flush()
-    await session.commit()
 
-    # No member yet
-    found = await ensure_team_for_user(session, chat_id, user_id)
-    assert found is None
+    admin_id = 1
+    player = await get_or_create_player(session, 301, "captain", "Captain")
+    team = await register_team(session, player, "Captains")
 
-    session.add(TeamMember(chat_id=chat_id, team_id=team.id, tg_user_id=user_id))
-    await session.commit()
+    game = await create_game(session, owner_user_id=admin_id)
+    await start_game(session, game)
+    await start_question(session, game)
+    await press_buzzer(session, game, player)
 
-    found = await ensure_team_for_user(session, chat_id, user_id)
-    assert found is not None
-    assert found.id == team.id
+    await award_score(session, game, team.id, points=2)
+    await finish_question(session, game)
+    scores = await get_scores(session, game)
+    assert scores == [(team.name, 2)]
+
+    active = await get_active_game(session)
+    assert active is not None and active.status == "running"
+
+
+@pytest.mark.asyncio
+async def test_full_game_flow(session):
+    """
+    Имитация полного сценария игры: запуск, вопросы, очередь, начисление очков, завершение.
+
+    :param session: Асинхронная тестовая сессия.
+    :return: None
+    """
+
+    admin_id = 1
+    # Три игрока и команды
+    players = [
+        await get_or_create_player(session, 401, "p1", "Player One"),
+        await get_or_create_player(session, 402, "p2", "Player Two"),
+        await get_or_create_player(session, 403, "p3", "Player Three"),
+    ]
+    teams = [
+        await register_team(session, players[0], "Alpha"),
+        await register_team(session, players[1], "Beta"),
+        await register_team(session, players[2], "Gamma"),
+    ]
+
+    game = await create_game(session, owner_user_id=admin_id)
+    await start_game(session, game)
+
+    # Вопрос №1: Alpha первая, получает балл
+    await start_question(session, game)
+    res_alpha = await press_buzzer(session, game, players[0])
+    assert res_alpha.position == 1
+    res_beta = await press_buzzer(session, game, players[1])
+    assert res_beta.position == 2
+    await award_score(session, game, teams[0].id)
+    await finish_question(session, game)
+    scores = await get_scores(session, game)
+    assert scores == [("Alpha", 1), ("Beta", 0), ("Gamma", 0)]
+
+    # Вопрос №2: Beta нажимает первой, но отвечает неверно -> Gamma получает шанс
+    await start_question(session, game)
+    await press_buzzer(session, game, players[1])
+    await press_buzzer(session, game, players[2])
+    removed, queue_after = await pop_queue(game)
+    assert removed == teams[1].id
+    assert queue_after == [teams[2].id]
+    await award_score(session, game, teams[2].id)
+    await finish_question(session, game)
+
+    # Завершение игры
+    await finish_game(session, game)
+    final_scores = dict(await get_scores(session, game))
+    assert final_scores == {"Alpha": 1, "Beta": 0, "Gamma": 1}

@@ -20,25 +20,25 @@ class GameState:
 STATE: Dict[int, GameState] = {}
 
 
-def get_state(chat_id: int) -> GameState:
+def get_state(game_id: int) -> GameState:
     """
-    Возвращает состояние игры для конкретного чата.
+    Возвращает состояние игры для конкретного идентификатора.
 
-    :param chat_id: Идентификатор чата.
+    :param game_id: Идентификатор игры.
     :return: Объект GameState.
     """
-    if chat_id not in STATE:
-        STATE[chat_id] = GameState()
-    return STATE[chat_id]
+    if game_id not in STATE:
+        STATE[game_id] = GameState()
+    return STATE[game_id]
 
 
-async def reset_round(chat_id: int) -> None:
+async def reset_round(game_id: int) -> None:
     """
-    Очищает очередь команд в раунде.
+    Очищает очередь команд для указанной игры.
 
-    :param chat_id: Идентификатор чата.
+    :param game_id: Идентификатор игры.
     :return: None
     """
-    state = get_state(chat_id)
+    state = get_state(game_id)
     async with state.lock:
         state.queue.clear()

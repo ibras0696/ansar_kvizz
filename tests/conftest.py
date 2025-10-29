@@ -1,42 +1,31 @@
+from __future__ import annotations
+
 import os
 from collections.abc import AsyncGenerator, Generator
-from typing import Any
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-ORIGINAL_ENV = {key: os.environ.get(key) for key in ["BOT_TOKEN", "DATABASE_URL", "LOG_LEVEL"]}
+from quizbot.db import Base
+from quizbot.services.game_state import STATE
+from quizbot.services import registration_state
+
+# Минимальный набор переменных окружения для Settings.
 os.environ.setdefault("BOT_TOKEN", "TEST:TOKEN")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
-
-from quizbot.db import Base
-from quizbot.services.game_state import STATE
-
-
-@pytest.fixture(autouse=True, scope="session")
-def restore_env() -> Generator[None, None, None]:
-    """
-    Возвращает переменные окружения к исходным значениям после тестов.
-
-    :return: None
-    """
-    yield
-    for key, value in ORIGINAL_ENV.items():
-        if value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = value
+os.environ.setdefault("DEFAULT_ADMIN_IDS", "1")
 
 
 @pytest_asyncio.fixture
-async def engine() -> AsyncGenerator[Any, None]:
+async def engine() -> AsyncGenerator[any, None]:
     """
-    Создаёт и инициализирует in-memory SQLite движок для тестов.
+    Создаёт in-memory SQLite движок для проверки сервисов.
 
-    :return: Асинхронный генератор с движком.
+    :return: Асинхронный движок.
     """
+
     test_engine = create_async_engine("sqlite+aiosqlite:///:memory:", future=True)
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -45,24 +34,26 @@ async def engine() -> AsyncGenerator[Any, None]:
 
 
 @pytest.fixture
-def session_factory(engine: Any) -> Any:
+def session_factory(engine) -> async_sessionmaker[AsyncSession]:
     """
-    Предоставляет фабрику сессий поверх тестового движка.
+    Предоставляет фабрику асинхронных сессий поверх тестового движка.
 
-    :param engine: Асинхронный движок SQLite.
-    :return: Фабрика асинхронных сессий.
+    :param engine: Асинхронный движок.
+    :return: async_sessionmaker.
     """
+
     return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
 @pytest_asyncio.fixture
-async def session(session_factory: Any) -> AsyncGenerator[AsyncSession, None]:
+async def session(session_factory: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncSession, None]:
     """
-    Возвращает асинхронную сессию БД для использования в тесте.
+    Возвращает асинхронную сессию для теста.
 
-    :param session_factory: Фабрика асинхронных сессий.
-    :return: Асинхронная сессия SQLAlchemy.
+    :param session_factory: Фабрика сессий.
+    :return: Автоуправляемая сессия.
     """
+
     async with session_factory() as db:
         yield db
 
@@ -70,10 +61,13 @@ async def session(session_factory: Any) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture(autouse=True)
 def clear_state() -> Generator[None, None, None]:
     """
-    Сбрасывает in-memory состояние очередей перед и после каждого теста.
+    Сбрасывает очередь в памяти перед каждым тестом.
 
     :return: None
     """
+
     STATE.clear()
+    registration_state.PENDING_REGISTRATION.clear()
     yield
     STATE.clear()
+    registration_state.PENDING_REGISTRATION.clear()
